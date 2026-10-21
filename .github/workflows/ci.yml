@@ -1,0 +1,12 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install pytest && pip install -r backend_api/requirements.txt && cd backend_api && python -m pytest -q
+      - run: pip install -r ai_engine/requirements.txt && cd ai_engine && python -m pytest -q
+      - run: cp .env.example .env && docker compose config -q

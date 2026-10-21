@@ -1,0 +1,12 @@
+# Production: HTTPS reverse proxy (auto Let's Encrypt) in front of the API.
+# docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment: {DOMAIN: "${DOMAIN}"}
+    volumes: ["./Caddyfile:/etc/caddy/Caddyfile:ro", "caddy_data:/data"]
+    networks: [neon]
+    depends_on: [backend_api]
+volumes: {caddy_data: {}}

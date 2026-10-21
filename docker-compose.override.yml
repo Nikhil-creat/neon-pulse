@@ -1,0 +1,6 @@
+# Dev overrides: expose infra ports and hot-reload Python services.
+services:
+  ai_engine: {ports: ["8001:8001"], volumes: ["./ai_engine/app:/srv/app"], command: ["uvicorn","app.main:app","--host","0.0.0.0","--port","8001","--reload"]}
+  vision_service: {ports: ["8002:8002"]}
+  redis: {ports: ["6379:6379"]}
+  qdrant: {ports: ["6333:6333"]}
