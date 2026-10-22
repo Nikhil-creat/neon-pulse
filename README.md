@@ -14,6 +14,11 @@
 - **Avatar Lab:** in-browser photo to pixel / neon / synthwave avatar (private, no upload).
 - **Ops:** JWT auth with refresh cookie, rate limiting, Prometheus `/metrics`, JSON logs, health checks, non-root Docker images, Alembic migrations, CI.
 
+## What is new in v2
+- **Local-first mode:** Log in / Register, friends, daily rewards, achievements and Today/Week/Friends boards all work in the browser, no backend needed.
+- **In-browser AI agent:** Groq function calling (stats, rewards, challenges, themes, RAG) or Gemini; keys stay in this tab only.
+- **AI coach** with score chart, **share card**, **voice control** + spoken replies, **webcam motion mode**, **command palette** (Ctrl+K or `/`), installable PWA.
+
 ## Architecture
 ```
 Browser (GitHub Pages) --HTTPS/WSS/SSE--> Caddy --> backend_api :8000 --> Postgres (users) · Redis (boards, stats, pub/sub)

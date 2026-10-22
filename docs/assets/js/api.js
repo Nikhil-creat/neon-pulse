@@ -1,5 +1,5 @@
 // ===== Live API layer: auth, HMAC-signed scores, leaderboards, WS feed, SSE chat, ghost replay, webcam gestures =====
-const A={base:store.get('api','http://localhost:8000'),tok:null,key:null,user:null,period:'all',rec:[],lh:0,run:[],ghost:[],ws:null,gz:false,cam:null};
+const A={base:store.get('api',''),tok:null,key:null,user:null,period:'all',rec:[],lh:0,run:[],ghost:[],ws:null,gz:false,cam:null};
 $('api').value=A.base;const setS=t=>$('as').textContent=t;
 async function f(p,o={},retry=true){const h={'Content-Type':'application/json',...(o.headers||{})};if(A.tok)h.Authorization='Bearer '+A.tok;
 const r=await fetch(A.base+p,{credentials:'include',...o,headers:o.body instanceof FormData?{Authorization:h.Authorization}:h});
