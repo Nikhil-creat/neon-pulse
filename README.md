@@ -1,70 +1,60 @@
-# Neon-Pulse · Pixel Clicker AI Platform
+# Neon-Pulse · Pixel Clicker AI Platform  (v5)
 
-> Intelligence built into every click. An AI-native clicker game platform with agentic AI, hybrid RAG, computer vision, signed scores and live leaderboards.
+> Intelligence built into every click. An AI-native clicker platform with agentic AI, hybrid RAG, computer vision, signed scores, live leaderboards and peer-to-peer duels.
 
-**Live site:** https://nikhil-creat.github.io/neon-pulse/ · **Author:** [Nikhil Chary Sriramoju](https://github.com/Nikhil-creat) · MIT licensed
+**Live site:** https://nikhil-creat.github.io/neon-pulse/ · **Author:** [Nikhil Chary Sriramoju](https://github.com/Nikhil-creat) · MIT
 
-## Features
-- **Agents (LangGraph):** Gameplay Director adapts difficulty, Anti-Cheat Guardrail assigns a 0–100 trust score, Profiler assigns playstyle personas, Commentator narrates.
-- **Click-Bot Prime:** streaming chatbot (Groq, Gemini fallback) with tool calling (stats, daily reward, challenges, knowledge search).
-- **Hybrid RAG:** BM25 + BGE vectors (Qdrant) fused with RRF, HyDE query expansion and cross-encoder re-ranking.
-- **Computer vision:** PyTorch CNN turns webcam gestures into clicks; OpenCV presence check.
-- **Integrity:** HMAC-SHA256 signed scores, server-side maximum-score check, trust threshold of 40.
-- **Live play:** Redis leaderboards (All time, Today, Week, Friends), WebSocket feed, daily rewards, streaks, friends, ghost replay, achievements, unlockable themes.
-- **Avatar Lab:** in-browser photo to pixel / neon / synthwave avatar (private, no upload).
-- **Ops:** JWT auth with refresh cookie, rate limiting, Prometheus `/metrics`, JSON logs, health checks, non-root Docker images, Alembic migrations, CI.
+## Highlights
+- **Works with no backend:** local profiles, boards, friends, rewards, achievements, five game modes, power-up rings, seeded Daily Challenge, analytics, backup/restore, P2P WebRTC duels.
+- **AI in the browser:** Click-Bot agent with Groq function calling or Gemini (your free key), optional **on-device model** (WebGPU, no key), AI coach, voice control, webcam motion mode, command palette (`/`).
+- **Full backend (Docker):** FastAPI + Postgres + Redis (or Redis Cluster) + Qdrant; LangGraph agents (director, anti-cheat, profiler, commentator); hybrid RAG (BM25 + BGE + RRF + HyDE + cross-encoder); HMAC-signed scores; JWT auth; Prometheus; CI.
+- **Vision:** PyTorch gesture CNN + OpenCV presence. Train it yourself with `docs/collect.html` + the Colab notebook.
+- **Avatars:** instant in-browser filters, or diffusion (SD-Turbo) through the optional avatar service.
+- **Two frontends:** `docs/` (vanilla, deployed on Pages) and `web/` (Next.js 15, React 19, Tailwind 4, Zustand, Framer Motion).
 
-## What is new in v2
-- **Local-first mode:** Log in / Register, friends, daily rewards, achievements and Today/Week/Friends boards all work in the browser, no backend needed.
-- **In-browser AI agent:** Groq function calling (stats, rewards, challenges, themes, RAG) or Gemini; keys stay in this tab only.
-- **AI coach** with score chart, **share card**, **voice control** + spoken replies, **webcam motion mode**, **command palette** (Ctrl+K or `/`), installable PWA.
-
-## Architecture
-```
-Browser (GitHub Pages) --HTTPS/WSS/SSE--> Caddy --> backend_api :8000 --> Postgres (users) · Redis (boards, stats, pub/sub)
-                                                      |-- ai_engine :8001 --> Qdrant · Groq / Gemini
-                                                      '-- vision_service :8002  (PyTorch CNN, OpenCV)
-```
-| Folder | Purpose |
+## Repo map
+| Path | Purpose |
 |---|---|
-| `docs/` | Static site served by GitHub Pages (HTML, CSS, vanilla JS) |
-| `backend_api/` | FastAPI: auth, scores, leaderboards, rewards, friends, ghosts, proxies |
+| `docs/` | Static site served by GitHub Pages (+ `collect.html` gesture trainer) |
+| `web/` | Next.js client (static export) |
+| `backend_api/` | FastAPI API, Alembic migrations, tests |
 | `ai_engine/` | Agents, hybrid RAG, chat over SSE |
-| `vision_service/` | Gesture CNN + presence check (`train.py`) |
-| `frontend/` | nginx image for `docs/` |
+| `vision_service/` | Gesture CNN, presence check, `train.py` |
+| `avatar_service/` | Optional diffusion avatars |
+| `notebooks/` | Colab gesture training |
+| `docker-compose*.yml`, `Caddyfile`, `Makefile`, `.github/workflows` | Ops |
 
-Tech: Python 3.12, FastAPI, LangGraph, PostgreSQL 16, Redis 7, Qdrant, PyTorch, OpenCV, Docker Compose, Caddy, GitHub Actions.
+## Deploy the site on GitHub Pages
+1. Push this repo to `Nikhil-creat/neon-pulse`.
+2. **Settings → Pages → Build and deployment → Deploy from a branch → `main` / `/docs` → Save.**
+3. Open https://nikhil-creat.github.io/neon-pulse/ (about a minute). Update later with `git add . && git commit -m "update" && git push`.
 
-## Quick start (full stack)
+Optional: publish the Next.js app instead: Settings → Pages → Source **GitHub Actions**, then Actions → *deploy-next* → Run workflow.
+
+## Run the full stack
 ```bash
-cp .env.example .env     # set JWT_SECRET, SIGN_SECRET, POSTGRES_PASSWORD, GROQ_API_KEY and/or GEMINI_API_KEY
+cp .env.example .env     # set secrets + GROQ_API_KEY and/or GEMINI_API_KEY (both free)
 docker compose up --build
 ```
 Site http://localhost:8080 · API docs http://localhost:8000/docs · metrics http://localhost:8000/metrics
-First start downloads the embedding model (~130 MB). Both Groq and Gemini offer free API keys.
 
-## Deploy the site on GitHub Pages
-1. Push this repo to GitHub (`Nikhil-creat/neon-pulse`).
-2. **Settings → Pages → Build and deployment → Deploy from a branch → `main` / `/docs` → Save.**
-3. Wait about a minute: https://nikhil-creat.github.io/neon-pulse/
+| Add-on | Command |
+|---|---|
+| Diffusion avatars (2 GB model, slow on CPU) | `make avatar` |
+| Next.js app on :8081 | `make next` |
+| Redis Cluster (experimental) | `make cluster` |
+| Production HTTPS (Caddy, set `DOMAIN`) | `make prod` |
+| Migrations (`AUTO_CREATE_TABLES=0` in prod) | `make migrate` |
+| Tests | `make test` |
 
-GitHub Pages hosts only the static site (offline mode: local game, built-in Q&A, Avatar Lab). To enable accounts, leaderboards and the AI, run the backend and paste its HTTPS URL into the site's **Account** box:
-- Quick: `docker compose up -d` then `cloudflared tunnel --url http://localhost:8000`
-- Permanent: a VPS with a domain, `DOMAIN=api.yourdomain.com` in `.env`, then `make prod` (Caddy issues the TLS certificate).
-- Always add `https://nikhil-creat.github.io` to `CORS_ORIGINS` in `.env`.
+To use the backend from the Pages site: expose it over HTTPS (`cloudflared tunnel --url http://localhost:8000` or a VPS with `make prod`), add `https://nikhil-creat.github.io` to `CORS_ORIGINS`, paste the URL into the Account box.
 
-## Gesture mode
-Add 100+ photos per class in `vision_service/dataset/{idle,tap,fist}/`, run `python train.py` in `vision_service/`, rebuild. Without weights the endpoint predicts but never clicks.
+## Train your gestures
+1. Open `collect.html` on your phone, record ~150 frames each for idle / tap / fist, download `dataset.json`.
+2. Upload it to `notebooks/train_gesture_colab.ipynb` in Google Colab (or run `python vision_service/train.py dataset.json`).
+3. Put `gesture.pt` at `vision_service/weights/gesture.pt`, rebuild `vision_service`.
 
-## Development
-```bash
-make test      # pytest: signatures, JWT, passwords, agents
-make migrate   # Alembic (set AUTO_CREATE_TABLES=0 in production)
-```
-See `ARCHITECTURE.md`, `SECURITY.md`, `CONTRIBUTING.md`.
+## Status and honesty
+Verified in a headless browser: the static site (modes, power-ups, seeded rounds, boards, analytics, WebRTC duel, trainer page). Written but **not executed here**: the Next.js app (CI builds it), avatar service, Redis Cluster mode, on-device WebGPU model, the Docker stack end to end. Report issues via GitHub.
 
-## Roadmap
-Next.js frontend, diffusion/StyleGAN avatars, Redis Cluster mode, tournaments.
-
-## License
-MIT © 2026 Nikhil Chary Sriramoju
+See `ARCHITECTURE.md`, `SECURITY.md`, `CONTRIBUTING.md`, `CHANGELOG.md`.

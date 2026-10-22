@@ -17,6 +17,7 @@ class Score(BaseModel):
     score: int = Field(ge=0, le=1_000_000)
     intervals: list[float] = Field(max_length=500)  # click gaps in ms
     hits: int = Field(ge=0); shots: int = Field(ge=0)
+    mode: str = Field("classic", pattern=r"^(classic|survival|precision|rush|daily)$")
 
 class Chat(BaseModel):
     message: str = Field(min_length=1, max_length=1000)

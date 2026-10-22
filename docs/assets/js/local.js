@@ -13,11 +13,11 @@ const ACHL=[['first_blood','First Blood','Finish a ranked round',s=>s.rounds>=1]
 const SK={first_blood:'Cyberpunk Neon',sharpshooter:'Retro 8-Bit',regular:'Synthwave 80s',legend:'Ghost Gold'};
 function stat(){const r=PR.rounds,h=r.reduce((a,x)=>a+x.hits,0),s=r.reduce((a,x)=>a+x.shots,0);return{rounds:r.length,best:Math.max(0,...r.map(x=>x.sc)),accuracy_pct:s?Math.round(100*h/s):0,coins:PR.coins,streak:PR.streak,persona:r.length?r[r.length-1].persona:'unranked'}}
 const BOTS=['NEON_FOX','GhostRun','PixelNova','Byte','Kilobyte','VoltRider','Glitch','Zeroday'];
-const bot=(n,p)=>120+hash(n+(p==='today'?day():p==='week'?wk():'all'))%330;
-function mine(p){const now=Date.now(),r=PR.rounds.filter(x=>p==='all'||(p==='today'?new Date(x.t).toISOString().slice(0,10)===day():now-x.t<6048e5||false));return r.length?Math.max(...r.map(x=>x.sc)):null}
+const bot=(n,p)=>120+hash(n+MODE+(MODE==='daily'||p==='today'?day():p==='week'?wk():'all'))%330;
+function mine(p){const now=Date.now(),pp=MODE==='daily'?'today':p,r=PR.rounds.filter(x=>(x.mode||'classic')===MODE&&(pp==='all'||(pp==='today'?new Date(x.t).toISOString().slice(0,10)===day():now-x.t<6048e5)));return r.length?Math.max(...r.map(x=>x.sc)):null}
 function rows(p){const m=mine(p==='friends'?'all':p),e=[];if(p==='friends')PR.friends.forEach(n=>e.push([n,bot(n,'all')]));else BOTS.forEach(n=>e.push([n,bot(n,p)]));if(m!==null)e.push([who(),m,1]);return e.sort((a,b)=>b[1]-a[1]).slice(0,10)}
 const apiDraw=drawLb;
-drawLb=function(){if(A.tok)return apiDraw();const r=rows(A.period);$('lb').innerHTML=r.length?r.map(e=>`<li class="${e[2]?'me':''}">${e[0]} — ${e[1]}</li>`).join(''):'<li>No scores yet. Play a round!</li>'};
+drawLb=function(){$('lbh').textContent='Leaderboard · '+MODE;if(A.tok)return apiDraw();const r=rows(A.period);$('lb').innerHTML=r.length?r.map(e=>`<li class="${e[2]?'me':''}">${e[0]} — ${e[1]}</li>`).join(''):'<li>No scores yet. Play a round!</li>'};
 function renderAch(){const s=stat(),l=ACHL.map(([id,n,d,fn])=>({id,n,d,u:!!fn(s)})),sk=l.filter(a=>a.u&&SK[a.id]).map(a=>SK[a.id]);A.skins=sk;
 $('ach').innerHTML='<h3>Achievements</h3>'+l.map(a=>`<div class="ach ${a.u?'u':'l'}"><b>${a.n}</b><span>${a.u?'unlocked':a.d}</span></div>`).join('')+`<div class="jb" style="font-size:12px;color:var(--lab);margin-top:8px">Skins: ${sk.length?sk.join(', '):'none yet'} · ${s.coins} coins · ${s.streak}-day streak</div><button class="btn g sm" id="dly" style="margin-top:10px">Claim daily reward</button>`;
 $('pf').textContent=`Profiler: ${s.persona} · best ${s.best} · ${s.coins} coins`;best=Math.max(best,s.best)}
@@ -42,7 +42,7 @@ const apiFriend=$('fa').onclick;
 $('fa').onclick=()=>{if(A.tok)return apiFriend();const n=$('fr').value.trim();if(!/^[A-Za-z0-9_]{3,32}$/.test(n)){setS2('Friend name: 3-32 letters, numbers or _');return}if(n===PR.name||PR.friends.includes(n)){setS2('Already on your list.');return}PR.friends.push(n);save();$('fr').value='';setS2(`Added rival ${n}. Check the Friends tab.`);if(A.period==='friends')drawLb()};
 // record finished rounds
 const apiEnd=end;
-end=async function(){await apiEnd();if(A.tok)return;if(trust>=40){const acc=shots?hit/shots:0,cps=hit/30;PR.rounds.push({sc,hits:hit,shots,acc:Math.round(acc*100),persona:cps>3.5?'The Speed Demon':acc>.9?'Precision Sniper':'Tactical Strategist',t:Date.now()});PR.rounds=PR.rounds.slice(-100);save();say(`Round saved: ${sc} pts`)}refresh();coach()};
+end=async function(){await apiEnd();if(A.tok)return;if(trust>=40){const acc=shots?hit/shots:0,cps=hit/Math.max(1,DUR||(performance.now()-st)/1000);PR.rounds.push({sc,hits:hit,shots,acc:Math.round(acc*100),persona:cps>3.5?'The Speed Demon':acc>.9?'Precision Sniper':'Tactical Strategist',mode:MODE,t:Date.now()});PR.rounds=PR.rounds.slice(-100);save();say(`Round saved: ${sc} pts`)}refresh();coach();analytics()};
 // ---------- AI: llm helper, agent, coach ----------
 const gk=()=>$('kg').value.trim(),jk=()=>$('kj').value.trim();
 try{['kg','kj'].forEach(i=>{$(i).value=sessionStorage.getItem(i)||'';$(i).addEventListener('input',()=>sessionStorage.setItem(i,$(i).value))})}catch(e){}
@@ -52,9 +52,14 @@ const TOOLS={fetch_player_stats:()=>JSON.stringify({...stat(),rank:rows('all').f
 trigger_custom_challenge:a=>tools.trigger_custom_challenge(a.difficulty||'medium'),query_knowledge_base:a=>rag(a.question||'').map(c=>c[0]+': '+c[1]).join('\n'),
 set_theme:a=>{const b=[...$('themes').children].find(x=>x.dataset.t===a.theme);if(!b)return 'unknown theme';b.click();return 'Theme requested (locked themes stay locked).'},start_round:()=>{$('go').click();return 'Round started.'}};
 const TS=[['fetch_player_stats','Get the player stats, rank and persona.',{}],['claim_daily_reward','Claim the daily reward.',{}],['trigger_custom_challenge','Set difficulty for the next round.',{difficulty:{type:'string',enum:['easy','medium','hard']}}],['query_knowledge_base','Search game rules and strategy.',{question:{type:'string'}}],['set_theme','Switch the UI theme if unlocked.',{theme:{type:'string',enum:['neon','retro','sun']}}],['start_round','Start a 30 second round.',{}]].map(([name,description,p])=>({type:'function',function:{name,description,parameters:{type:'object',properties:p}}}));
+let LLM=null;
+async function loadLLM(){if(LLM){say('On-device AI is already loaded.');return}if(!navigator.gpu){say('On-device AI needs WebGPU (recent Chrome on desktop or a modern phone).');return}
+say('Downloading the on-device model (~350 MB, first time only)…');
+try{const w=await import('https://esm.run/@mlc-ai/web-llm');LLM=await w.CreateMLCEngine('Qwen2.5-0.5B-Instruct-q4f16_1-MLC',{initProgressCallback:p=>say('On-device AI: '+String(p.text).slice(0,90))});say('On-device AI ready. Ask Click-Bot without any API key.')}catch(e){LLM=null;say('On-device AI failed: '+e.message)}}
 function typeOut(el,t){return new Promise(r=>{let i=0;const iv=setInterval(()=>{i+=3;el.textContent=t.slice(0,i);L.scrollTop=L.scrollHeight;if(i>=t.length){clearInterval(iv);r()}},12)})}
 function speak(t){if(voiceOn&&'speechSynthesis'in window&&t){speechSynthesis.cancel();speechSynthesis.speak(new SpeechSynthesisUtterance(t.slice(0,300)))}}
 async function agentAsk(q){add(q,'u');const out=add('…');
+if(LLM&&!gk()&&!jk()){try{const ctx=rag(q).map(c=>c[0]+': '+c[1]).join('\n'),r=await LLM.chat.completions.create({stream:true,messages:[{role:'system',content:'You are Click-Bot Prime, a concise esports coach for a neon clicker game. Answer in 2 sentences using only these facts:\n'+ctx},{role:'user',content:q}]});let t='';for await(const ch of r){t+=(ch.choices[0]&&ch.choices[0].delta.content)||'';out.textContent=t;L.scrollTop=L.scrollHeight}speak(t)}catch(e){out.textContent='On-device AI error: '+e.message}return}
 if(!gk()&&!jk()){const m=q.match(/challenge\s*(easy|hard|medium)?/i);let r;
 if(m)r=TOOLS.trigger_custom_challenge({difficulty:(m[1]||'medium').toLowerCase()});else if(/daily|reward/i.test(q))r=claim();else if(/stat|rank/i.test(q))r=TOOLS.fetch_player_stats();else if(/(start|play).*(round|game)/i.test(q))r=TOOLS.start_round();
 else{r=rag(q)[0][1];out.textContent=r;add('Offline answer. Add a free Groq or Gemini key below to unlock the full AI agent.','s');return}
@@ -113,7 +118,18 @@ pi.oninput=()=>{const q=pi.value.toLowerCase();cur=CMDS.filter(c=>c[0].toLowerCa
 pi.onkeydown=e=>{if(e.key==='ArrowDown'){sel=Math.min(sel+1,cur.length-1);rl();e.preventDefault()}else if(e.key==='ArrowUp'){sel=Math.max(sel-1,0);rl();e.preventDefault()}else if(e.key==='Enter')run2(sel);else if(e.key==='Escape')cl()};
 pl.onclick=e=>e.target.dataset.i&&run2(+e.target.dataset.i);pal.onclick=e=>{if(e.target===pal)cl()};$('pk').onclick=op;
 addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();op()}else if(e.key==='/'&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){e.preventDefault();op()}});
+// ---------- analytics, backup ----------
+function analytics(){PR.heat=PR.heat||new Array(96).fill(0);A.run.forEach(p=>{PR.heat[Math.min(7,p[2]*8|0)*12+Math.min(11,p[1]*12|0)]++});if(A.run.length)save();
+const hm=$('hm').getContext('2d'),mx=Math.max(1,...PR.heat);hm.clearRect(0,0,288,192);for(let i=0;i<96;i++){hm.fillStyle=`rgba(${THEME.rgb},${PR.heat[i]/mx*.9})`;hm.fillRect((i%12)*24,(i/12|0)*24,23,23);hm.strokeStyle='#1a1a1a';hm.strokeRect((i%12)*24,(i/12|0)*24,23,23)}
+const ih=$('ih').getContext('2d'),iv=A.rec.slice(1).map((t,i)=>t-A.rec[i]),b=new Array(10).fill(0);iv.forEach(v=>b[Math.min(9,v/100|0)]++);const m=Math.max(1,...b);ih.clearRect(0,0,288,80);ih.fillStyle='#fff';b.forEach((v,i)=>ih.fillRect(i*29+2,78-v/m*66,25,v/m*66));ih.fillStyle='#949494';ih.font='10px monospace';ih.fillText('click gaps 0 to 1s',4,10)}
+function exportData(){const d={v:4,profiles,cur:PR.name,hist,lb:board,theme:store.get('theme','neon')},a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(d)],{type:'application/json'}));a.download='neon-pulse-backup.json';a.click()}
+function importData(){const i=document.createElement('input');i.type='file';i.accept='application/json';i.onchange=async()=>{try{const d=JSON.parse(await i.files[0].text());if(!d.profiles)throw 0;store.set('profiles',d.profiles);store.set('cur',d.cur||'');store.set('hist',d.hist||[]);store.set('lb',d.lb||[]);location.reload()}catch(e){say('Invalid backup file.')}};i.click()}
+const mode=m=>()=>{jump('play');[...$('modes').children].find(b=>b.dataset.m===m).click()};
+CMDS.push(['Load on-device AI (WebGPU)',loadLLM],['Mode: Survival',mode('survival')],['Mode: Precision',mode('precision')],['Mode: Rush',mode('rush')],['Mode: Daily Challenge',mode('daily')],['Mode: Classic',mode('classic')],['Duel a friend (P2P)',()=>$('du').click()],['Toggle haptics',()=>{HAP=!HAP;store.set('hap',HAP);say('Haptics '+(HAP?'on':'off'))}],['Export my data',exportData],['Import data backup',importData]);
+const ab=document.createElement('button');ab.className='btn g sm';ab.textContent='AI stylize (server)';ab.style.cssText='margin:10px 0 0 8px';$('adl').after(ab);
+ab.onclick=async()=>{const fl=$('af').files[0];if(!fl){say('Pick a photo first.');return}if(!A.tok){say('AI stylize needs a logged-in backend with the avatar service running (docker compose --profile avatar up).');return}
+ab.textContent='Generating…';try{const fd=new FormData();fd.append('frame',fl);const r=await f('/api/v1/avatar?style='+({neon:'neon',pixel:'pixel',sun:'synth'}[$('as2').value]||'neon'),{method:'POST',body:fd}),im=new Image();im.onload=()=>{$('av').getContext('2d').drawImage(im,0,0,256,256);ab.textContent='AI stylize (server)'};im.src=URL.createObjectURL(await r.blob())}catch(e){say('Avatar: '+e.message);ab.textContent='AI stylize (server)'}};
 // ---------- init ----------
 ui();setS2(PR.name?`Signed in locally as ${PR.name}.`:'Local mode: profile and scores are saved in this browser. Add a backend URL for global leaderboards.');
-refresh();const sv=store.get('theme','neon');if(sv!=='neon'){const b=[...$('themes').children].find(x=>x.dataset.t===sv);b&&b.click()}
+refresh();analytics();const sv=store.get('theme','neon');if(sv!=='neon'){const b=[...$('themes').children].find(x=>x.dataset.t===sv);b&&b.click()}
 })();

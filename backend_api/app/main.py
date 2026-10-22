@@ -21,7 +21,12 @@ _h = logging.StreamHandler(); _h.setFormatter(J()); log = logging.getLogger("api
 WS = Gauge("ws_connections", "Open WebSockets"); REQ = Counter("http_requests_total", "Requests", ["path", "status"])
 LAT = Histogram("http_latency_seconds", "Latency", ["path"]); REJ = Counter("scores_rejected_total", "Rejected scores", ["reason"])
 engine = create_async_engine(C.DATABASE_URL, pool_pre_ping=True); Session = async_sessionmaker(engine, expire_on_commit=False)
-redis = aioredis.from_url(C.REDIS_URL, decode_responses=True)
+if os.environ.get("REDIS_CLUSTER") == "1":  # opt-in Redis Cluster; pub/sub stays on one node (cluster-wide broadcast)
+    from redis.asyncio.cluster import RedisCluster
+    redis = RedisCluster.from_url(C.REDIS_URL, decode_responses=True)
+    bus = aioredis.from_url(os.environ.get("PUBSUB_URL") or C.REDIS_URL, decode_responses=True)
+else:
+    redis = aioredis.from_url(C.REDIS_URL, decode_responses=True); bus = redis
 SAMESITE = os.environ.get("COOKIE_SAMESITE", "none")
 
 @asynccontextmanager
@@ -30,6 +35,7 @@ async def lifespan(app):
         async with engine.begin() as c: await c.run_sync(Base.metadata.create_all)
     yield
     await redis.aclose()
+    if bus is not redis: await bus.aclose()
 
 app = FastAPI(title="Neon-Pulse API", version="1.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=C.CORS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -54,8 +60,9 @@ async def opt_me(authorization: str = Header("")):
     try: return S.read_token(authorization.removeprefix("Bearer "), "access")
     except jwt.PyJWTError: return None
 
-def _keys():
-    d = datetime.now(timezone.utc); return {"all": "lb:all", "today": f"lb:d:{d:%Y%m%d}", "week": f"lb:w:{d:%G%V}"}
+def _keys(mode: str = "classic"):
+    d = datetime.now(timezone.utc); p = "lb" if mode == "classic" else f"lb:{mode}"  # classic keeps the original key names
+    return {"all": f"{p}:all", "today": f"{p}:d:{d:%Y%m%d}", "week": f"{p}:w:{d:%G%V}"}
 
 async def stats_of(u: str) -> dict:
     h = await redis.hgetall(f"stats:{u}"); rk = await redis.zrevrank("lb:all", u)
@@ -101,7 +108,7 @@ async def submit(request: Request, user: str = Depends(me), x_signature: str = H
     raw = await request.body()
     if not S.valid_signature(user, raw, x_signature): REJ.labels("signature").inc(); raise HTTPException(400, "bad signature")
     p = Score.model_validate_json(raw)
-    if p.hits > p.shots or p.score > 10 * p.hits + p.hits * (p.hits + 1) // 2:
+    if p.hits > p.shots or p.score > 3 * (10 * p.hits + p.hits * (p.hits + 1) // 2):  # x3 allows golden rings
         REJ.labels("impossible").inc(); raise HTTPException(422, "score impossible for reported hits")
     tel = {"intervals": p.intervals, "hits": p.hits, "shots": p.shots}
     try:
@@ -110,18 +117,18 @@ async def submit(request: Request, user: str = Depends(me), x_signature: str = H
             persona = (await c.post(f"{C.AI_ENGINE_URL}/profile", json=tel)).json().get("persona", "unranked")
     except (httpx.HTTPError, ValueError): v, persona = {"trust": 50, "flag": "ai_engine_unreachable"}, "unranked"
     if v["trust"] < 40: REJ.labels("anticheat").inc(); raise HTTPException(422, f"rejected by anti-cheat: {v['flag']}")
-    ks = _keys()
+    ks = _keys(p.mode)
     for k in ks.values(): await redis.zadd(k, {user: p.score}, gt=True)
     await redis.expire(ks["today"], 172800); await redis.expire(ks["week"], 900000)
     st = f"stats:{user}"; best = int(await redis.hget(st, "best") or 0)
     await redis.hset(st, mapping={"best": max(best, p.score), "persona": persona})
     await redis.hincrby(st, "rounds", 1); await redis.hincrby(st, "hits", p.hits); await redis.hincrby(st, "shots", p.shots)
     await redis.incr("global:rounds")
-    await redis.publish("live", json.dumps({"user": user, "score": p.score, "persona": persona}))
+    await bus.publish("live", json.dumps({"user": user, "score": p.score, "persona": persona, "mode": p.mode}))
     return {"accepted": True, "trust": v["trust"], "persona": persona, "director": v.get("director")}
 
 @app.get("/api/v1/leaderboard")
-async def board(period: str = "all", limit: int = 100, user: str | None = Depends(opt_me)):
+async def board(period: str = "all", limit: int = 100, mode: str = "classic", user: str | None = Depends(opt_me)):
     limit = max(1, min(limit, 100))
     if period == "friends":
         if not user: raise HTTPException(401, "login required")
@@ -129,7 +136,7 @@ async def board(period: str = "all", limit: int = 100, user: str | None = Depend
         scores = await redis.zmscore("lb:all", names)
         rows = sorted(((n, s) for n, s in zip(names, scores) if s is not None), key=lambda r: -r[1])[:limit]
     else:
-        k = _keys().get(period)
+        k = _keys(mode).get(period) if mode in ("classic", "survival", "precision", "rush", "daily") else None
         if not k: raise HTTPException(400, "period: all|today|week|friends")
         rows = await redis.zrevrange(k, 0, limit - 1, withscores=True)
     return [{"rank": i + 1, "user": u, "score": int(s)} for i, (u, s) in enumerate(rows)]
@@ -199,7 +206,7 @@ async def presence(frame: UploadFile = File(...), user: str = Depends(me)): retu
 # ---------- live feed ----------
 @app.websocket("/ws/live")
 async def live(ws: WebSocket):
-    await ws.accept(); WS.inc(); ps = redis.pubsub(); await ps.subscribe("live")
+    await ws.accept(); WS.inc(); ps = bus.pubsub(); await ps.subscribe("live")
     try:
         async for m in ps.listen():
             if m["type"] == "message": await ws.send_text(m["data"])
@@ -231,3 +238,15 @@ async def global_stats(): return {"players": await redis.zcard("lb:all"), "round
 @app.post("/api/v1/contact", status_code=201)
 async def contact(c: Contact):
     await redis.lpush("contact:inbox", c.model_dump_json()); await redis.ltrim("contact:inbox", 0, 499); return {"ok": True}
+
+# ---------- AI avatar (optional avatar_service, run with: docker compose --profile avatar up) ----------
+@app.post("/api/v1/avatar")
+async def avatar(style: str = "neon", frame: UploadFile = File(...), user: str = Depends(me)):
+    data = await frame.read()
+    if len(data) > 3_000_000: raise HTTPException(413, "image too large")
+    try:
+        async with httpx.AsyncClient(timeout=180) as c:
+            r = await c.post(f"{os.environ.get('AVATAR_URL', 'http://avatar_service:8003')}/stylize", params={"style": style}, files={"image": ("a.jpg", data, "image/jpeg")})
+    except httpx.HTTPError: raise HTTPException(503, "avatar service not running (docker compose --profile avatar up)")
+    if r.status_code != 200: raise HTTPException(502, "avatar service error")
+    return Response(r.content, media_type="image/png")

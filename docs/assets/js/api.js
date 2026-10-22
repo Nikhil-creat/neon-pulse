@@ -12,14 +12,14 @@ try{if(kind==='reg')await f('/api/v1/auth/register',{method:'POST',body:b});cons
 $('li').onclick=()=>auth('login');$('rg').onclick=()=>auth('reg');
 async function stats(){try{const s=await(await f('/api/v1/me/stats')).json();best=s.best;$('pf').textContent=`Profiler: ${s.persona} · rank ${s.global_rank??'–'} · ${s.coins} coins · streak ${s.streak}`}catch(e){}}
 drawLb=async function(){const el=$('lb');if(!A.tok){el.innerHTML=board.slice().sort((a,b)=>b[1]-a[1]).slice(0,8).map(e=>`<li class="${e[0]==='YOU'?'me':''}">${e[0]} — ${e[1]}</li>`).join('');return}
-try{const r=await(await f('/api/v1/leaderboard?period='+A.period+'&limit=10')).json();el.innerHTML=r.length?r.map(e=>`<li class="${e.user===A.user?'me':''}">${e.user} — ${e.score}</li>`).join(''):'<li>No scores yet</li>'}catch(e){el.innerHTML='<li>'+e.message+'</li>'}};
+try{const r=await(await f('/api/v1/leaderboard?period='+A.period+'&limit=10&mode='+MODE)).json();el.innerHTML=r.length?r.map(e=>`<li class="${e.user===A.user?'me':''}">${e.user} — ${e.score}</li>`).join(''):'<li>No scores yet</li>'}catch(e){el.innerHTML='<li>'+e.message+'</li>'}};
 $('tabs').onclick=e=>{const p=e.target.dataset.p;if(!p)return;A.period=p;[...$('tabs').children].forEach(b=>b.classList.toggle('on',b===e.target));drawLb()};
 $('fa').onclick=async()=>{try{await f('/api/v1/friends/'+encodeURIComponent($('fr').value.trim()),{method:'POST'});setS('Friend added');$('fr').value=''}catch(e){setS('Friend: '+e.message)}};
 function ws(){if(A.ws)A.ws.close();try{A.ws=new WebSocket(A.base.replace(/^http/,'ws')+'/ws/live');A.ws.onmessage=m=>{const d=JSON.parse(m.data);say(`${d.user} just scored ${d.score} (${d.persona})`);drawLb()}}catch(e){}}
 cv.addEventListener('pointerdown',e=>{if(!run)return;A.rec.push(e.timeStamp);if(hit>A.lh){const r=cv.getBoundingClientRect();A.run.push([+((e.timeStamp-st)/1000).toFixed(3),+((e.clientX-r.left)/r.width).toFixed(4),+((e.clientY-r.top)/r.height).toFixed(4)])}A.lh=hit});
 const oldGo=$('go').onclick;$('go').onclick=async()=>{A.rec=[];A.run=[];A.lh=0;A.ghost=[];oldGo();if(A.tok){try{A.ghost=(await(await f('/api/v1/ghosts/top')).json()).hits||[]}catch(e){}}};
 const oldAudit=audit;audit=function(e){if(A.gz)return;return oldAudit(e)};
-const oldEnd=end;end=async function(){oldEnd();if(!A.tok)return;const iv=A.rec.slice(1).map((t,i)=>t-A.rec[i]).slice(-500),body=JSON.stringify({score:sc,intervals:iv,hits:hit,shots});
+const oldEnd=end;end=async function(){oldEnd();if(!A.tok)return;const iv=A.rec.slice(1).map((t,i)=>t-A.rec[i]).slice(-500),body=JSON.stringify({score:sc,intervals:iv,hits:hit,shots,mode:MODE});
 try{const j=await(await f('/api/v1/scores',{method:'POST',body,headers:{'X-Signature':await sign(body)}})).json();say(`Server accepted ${sc} pts · trust ${Math.round(j.trust)} · ${j.persona}`);setTrust(j.trust);
 f('/api/v1/ghosts',{method:'POST',body:JSON.stringify({score:sc,hits:A.run.slice(0,500)})}).catch(()=>{})}catch(e){say('Server rejected score: '+e.message)}drawLb();stats()};
 (function gl(){if(run&&A.ghost.length){const t=(performance.now()-st)/1000,d=devicePixelRatio||1;A.ghost.forEach(g=>{const a=t-g[0];if(a>-.6&&a<.25){x.beginPath();x.arc(g[1]*W,g[2]*H,26*d*(1+a),0,6.28);x.strokeStyle=`rgba(255,255,255,${.35*(1-Math.abs(a))})`;x.setLineDash([6,6]);x.lineWidth=2;x.stroke();x.setLineDash([])}})}requestAnimationFrame(gl)})();

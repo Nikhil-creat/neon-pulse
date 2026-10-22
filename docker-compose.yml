@@ -38,5 +38,16 @@ services:
     <<: *svc
     build: {context: ., dockerfile: frontend/Dockerfile}
     ports: ["8080:8080"]
+  avatar_service:  # optional: docker compose --profile avatar up
+    <<: *svc
+    profiles: ["avatar"]
+    build: ./avatar_service
+    volumes: [hf:/hf]
+    ports: ["8003:8003"]
+  web:  # optional Next.js app: docker compose --profile next up
+    <<: *svc
+    profiles: ["next"]
+    build: {context: ./web, args: {NEXT_PUBLIC_API_URL: "http://localhost:8000"}}
+    ports: ["8081:8080"]
 networks: {neon: {driver: bridge}}
-volumes: {pgdata: {}, qdrant: {}}
+volumes: {pgdata: {}, qdrant: {}, hf: {}}

@@ -1,0 +1,11 @@
+# EXPERIMENTAL Redis Cluster (dev). docker compose -f docker-compose.yml -f docker-compose.cluster.yml up --build
+# For production use a managed cluster and just set REDIS_CLUSTER=1 and REDIS_URL. Cluster nodes must announce an address that backend_api can reach.
+services:
+  redis_cluster:
+    image: grokzen/redis-cluster:7.0.10
+    restart: unless-stopped
+    environment: {IP: "redis_cluster", INITIAL_PORT: "7000"}
+    networks: [neon]
+  backend_api:
+    depends_on: [redis_cluster]
+    environment: {REDIS_CLUSTER: "1", REDIS_URL: "redis://redis_cluster:7000", PUBSUB_URL: "redis://redis_cluster:7000"}

@@ -1,7 +1,7 @@
 name: ci
 on: [push, pull_request]
 jobs:
-  test:
+  python:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -10,3 +10,10 @@ jobs:
       - run: pip install pytest && pip install -r backend_api/requirements.txt && cd backend_api && python -m pytest -q
       - run: pip install -r ai_engine/requirements.txt && cd ai_engine && python -m pytest -q
       - run: cp .env.example .env && docker compose config -q
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 20}
+      - run: cd web && npm install && npm run build

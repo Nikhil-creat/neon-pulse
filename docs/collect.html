@@ -1,0 +1,18 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Gesture trainer · Neon-Pulse</title><link rel="icon" href="assets/favicon.svg"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=JetBrains+Mono:wght@400;500&display=swap"><link rel="stylesheet" href="assets/css/style.css"></head><body>
+<section class="p" style="min-height:100vh;max-width:760px"><div class="eb">Neon-Pulse · gesture trainer</div><h2>Record your gesture dataset.</h2>
+<p class="lead">Hold a button while posing in front of the camera. Frames are 64×64 grayscale and stay on this device until you download them. Record about 150 frames per class, then train with <b>notebooks/train_gesture_colab.ipynb</b> or <b>vision_service/train.py</b>.</p>
+<video id="v" autoplay playsinline muted style="width:100%;max-width:420px;border:1px solid var(--line);background:#000;transform:scaleX(-1)"></video>
+<div class="row" style="margin:14px 0"><button class="btn sm" id="cam">Start camera</button></div>
+<div class="row" id="lbl"><button class="btn g sm" data-l="idle">Hold: idle (hand away)</button><button class="btn g sm" data-l="tap">Hold: tap (index finger)</button><button class="btn g sm" data-l="fist">Hold: fist</button></div>
+<div class="jb" id="cnt" style="margin:14px 0;color:var(--sub);font-size:13px">idle 0 · tap 0 · fist 0</div>
+<div class="row"><button class="btn sm" id="dl">Download dataset.json</button><button class="btn g sm" id="clr">Clear</button><a class="btn g sm" href="./" style="text-decoration:none">Back to site</a></div></section>
+<script>
+const $=i=>document.getElementById(i),D={idle:[],tap:[],fist:[]},c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d',{willReadFrequently:true});let rec=null,iv=null;
+const upd=()=>$('cnt').textContent=Object.keys(D).map(k=>k+' '+D[k].length).join(' · ');
+$('cam').onclick=async()=>{try{$('v').srcObject=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:320,height:240}});$('cam').textContent='Camera on'}catch(e){$('cnt').textContent='Camera: '+e.message}};
+function snap(){const v=$('v');if(!v.videoWidth||!rec)return;const s=Math.min(v.videoWidth,v.videoHeight);g.filter='grayscale(1)';g.drawImage(v,(v.videoWidth-s)/2,(v.videoHeight-s)/2,s,s,0,0,64,64);if(D[rec].length<600)D[rec].push(c.toDataURL('image/png'));upd()}
+const go=l=>{rec=l;clearInterval(iv);iv=setInterval(snap,120)},stop=()=>{rec=null;clearInterval(iv)};
+document.querySelectorAll('#lbl button').forEach(b=>{b.addEventListener('pointerdown',e=>{e.preventDefault();go(b.dataset.l)});['pointerup','pointerleave','pointercancel'].forEach(t=>b.addEventListener(t,stop))});
+$('dl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D)],{type:'application/json'}));a.download='dataset.json';a.click()};
+$('clr').onclick=()=>{for(const k in D)D[k]=[];upd()};
+</script></body></html>
