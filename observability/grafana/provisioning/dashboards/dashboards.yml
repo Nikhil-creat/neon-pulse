@@ -1,0 +1,3 @@
+apiVersion: 1
+providers:
+  - {name: neon-pulse, folder: Neon-Pulse, type: file, options: {path: /var/lib/grafana/dashboards}}

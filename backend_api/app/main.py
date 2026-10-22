@@ -45,7 +45,7 @@ async def mw(request: Request, call_next):
     cid = request.headers.get("x-correlation-id", uuid.uuid4().hex[:12]); t = time.time(); path = request.url.path
     try:
         vision = path.startswith("/api/v1/vision")
-        resp = await limiter(request, call_next, redis, 600 if vision else 100, "vision" if vision else "api")
+        resp = await limiter(request, call_next, redis, 600 if vision else int(os.environ.get("RATE_LIMIT", "100")), "vision" if vision else "api")
     except Exception as e:
         log.error(f"unhandled {type(e).__name__}: {e}", extra={"cid": cid}); return Response("internal error", 500)
     resp.headers.update({"x-correlation-id": cid, "x-content-type-options": "nosniff", "x-frame-options": "DENY", "referrer-policy": "no-referrer"})
@@ -220,7 +220,7 @@ ACH = [("first_blood", "First Blood", "Finish a ranked round", lambda s: s["roun
        ("regular", "Regular", "3-day reward streak", lambda s: s["streak"] >= 3),
        ("veteran", "Veteran", "Play 25 rounds", lambda s: s["rounds"] >= 25),
        ("legend", "Legend", "Score 400+ in a round", lambda s: s["best"] >= 400)]
-SKINS = {"first_blood": "Cyberpunk Neon", "sharpshooter": "Retro 8-Bit", "regular": "Synthwave 80s", "legend": "Ghost Gold"}
+SKINS = {"first_blood": "Cyberpunk Neon", "sharpshooter": "Retro 8-Bit", "regular": "Synthwave 80s", "legend": "Ghost Gold", "veteran": "Aurora Ice"}
 
 @app.get("/api/v1/me/achievements")
 async def achievements(user: str = Depends(me)):

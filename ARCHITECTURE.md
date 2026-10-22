@@ -14,3 +14,8 @@ auth: register, login, refresh · scores · leaderboard (all|today|week|friends)
 - **Redis Cluster**: `REDIS_CLUSTER=1` switches to `redis.asyncio.cluster.RedisCluster`; pub/sub runs on a single plain connection (`PUBSUB_URL`). All keys are single-key operations, so no hash-tag design is needed.
 - **Gesture training**: `docs/collect.html` -> `dataset.json` -> `train.py` / Colab -> `weights/gesture.pt`.
 - **On-device LLM**: optional WebLLM (Qwen2.5-0.5B, WebGPU) loaded from a CDN on demand; answers use the local RAG context.
+
+## v6 additions
+- **fx.js**: WebGL fragment shader (domain-warped fbm plasma, half-resolution, 30 fps, paused off-screen), pointer-driven card tilt, count-up stats, WebAudio generative music.
+- **local.js**: Weekly Cup state machine (`PR.cup`, seeded by week number), rating/tier, per-mode ghosts.
+- **observability/**: Prometheus scrape of `/metrics`, provisioned Grafana dashboard (rate, p95 latency, WebSockets, rejected scores).

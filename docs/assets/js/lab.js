@@ -14,7 +14,7 @@ $('af').onchange=e=>{const fl=e.target.files[0];if(!fl)return;const u=URL.create
 ['as2','ar'].forEach(i=>$(i).oninput=()=>ready&&draw());
 $('adl').onclick=()=>{if(!ready)return;v.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='neon-avatar.png';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)})};
 // themes: Cyberpunk Neon always; Retro 8-Bit and Synthwave 80s unlock via skins (API) or local rounds played (offline)
-const TH={neon:{hex:'#c81b1c',rgb:'200,27,28',skin:'Cyberpunk Neon'},retro:{hex:'#1c9c10',rgb:'28,156,16',skin:'Retro 8-Bit',rounds:1},sun:{hex:'#d65a00',rgb:'214,90,0',skin:'Synthwave 80s',rounds:3}};
+const TH={neon:{hex:'#c81b1c',rgb:'200,27,28',skin:'Cyberpunk Neon'},retro:{hex:'#1c9c10',rgb:'28,156,16',skin:'Retro 8-Bit',rounds:1},sun:{hex:'#d65a00',rgb:'214,90,0',skin:'Synthwave 80s',rounds:3},ice:{hex:'#0aa7c4',rgb:'10,167,196',skin:'Aurora Ice',rounds:5},gold:{hex:'#c98a00',rgb:'201,138,0',skin:'Ghost Gold',rounds:9999}};
 const open_=t=>t==='neon'||(A.skins||[]).includes(TH[t].skin)||hist.length>=TH[t].rounds;
 function setTheme(t){if(!open_(t)){say(`${TH[t].skin} is locked. Play ${TH[t].rounds} round(s) or earn the skin.`);return}document.documentElement.dataset.theme=t==='neon'?'':t;THEME={hex:TH[t].hex,rgb:TH[t].rgb};store.set('theme',t);[...$('themes').children].forEach(b=>b.classList.toggle('on',b.dataset.t===t))}
 $('themes').onclick=e=>e.target.dataset.t&&setTheme(e.target.dataset.t);const sv=store.get('theme','neon');if(open_(sv))setTheme(sv);

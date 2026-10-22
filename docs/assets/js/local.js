@@ -10,7 +10,7 @@ const save=()=>{profiles[PR.name||'guest']=PR;store.set('profiles',profiles);sto
 const who=()=>PR.name||'YOU',loggedIn=()=>!!(A.tok||PR.name);
 // ---------- stats, achievements, board ----------
 const ACHL=[['first_blood','First Blood','Finish a ranked round',s=>s.rounds>=1],['centurion','Centurion','Score 100+ in a round',s=>s.best>=100],['sharpshooter','Sharpshooter','90%+ accuracy over 3 rounds',s=>s.rounds>=3&&s.accuracy_pct>=90],['regular','Regular','3-day reward streak',s=>s.streak>=3],['veteran','Veteran','Play 25 rounds',s=>s.rounds>=25],['legend','Legend','Score 400+ in a round',s=>s.best>=400]];
-const SK={first_blood:'Cyberpunk Neon',sharpshooter:'Retro 8-Bit',regular:'Synthwave 80s',legend:'Ghost Gold'};
+const SK={first_blood:'Cyberpunk Neon',sharpshooter:'Retro 8-Bit',regular:'Synthwave 80s',legend:'Ghost Gold',veteran:'Aurora Ice'};
 function stat(){const r=PR.rounds,h=r.reduce((a,x)=>a+x.hits,0),s=r.reduce((a,x)=>a+x.shots,0);return{rounds:r.length,best:Math.max(0,...r.map(x=>x.sc)),accuracy_pct:s?Math.round(100*h/s):0,coins:PR.coins,streak:PR.streak,persona:r.length?r[r.length-1].persona:'unranked'}}
 const BOTS=['NEON_FOX','GhostRun','PixelNova','Byte','Kilobyte','VoltRider','Glitch','Zeroday'];
 const bot=(n,p)=>120+hash(n+MODE+(MODE==='daily'||p==='today'?day():p==='week'?wk():'all'))%330;
@@ -18,9 +18,11 @@ function mine(p){const now=Date.now(),pp=MODE==='daily'?'today':p,r=PR.rounds.fi
 function rows(p){const m=mine(p==='friends'?'all':p),e=[];if(p==='friends')PR.friends.forEach(n=>e.push([n,bot(n,'all')]));else BOTS.forEach(n=>e.push([n,bot(n,p)]));if(m!==null)e.push([who(),m,1]);return e.sort((a,b)=>b[1]-a[1]).slice(0,10)}
 const apiDraw=drawLb;
 drawLb=function(){$('lbh').textContent='Leaderboard · '+MODE;if(A.tok)return apiDraw();const r=rows(A.period);$('lb').innerHTML=r.length?r.map(e=>`<li class="${e[2]?'me':''}">${e[0]} — ${e[1]}</li>`).join(''):'<li>No scores yet. Play a round!</li>'};
+function rating(){const t=PR.rounds.map(x=>x.sc).sort((a,b)=>b-a).slice(0,5);return Math.round(900+(t.length?t.reduce((a,b)=>a+b,0)/t.length:0)*2.2+(PR.trophies||0)*50)}
+function tier(){const r=rating();return r<1000?'Bronze':r<1200?'Silver':r<1400?'Gold':r<1600?'Platinum':r<1800?'Diamond':'Mythic'}
 function renderAch(){const s=stat(),l=ACHL.map(([id,n,d,fn])=>({id,n,d,u:!!fn(s)})),sk=l.filter(a=>a.u&&SK[a.id]).map(a=>SK[a.id]);A.skins=sk;
-$('ach').innerHTML='<h3>Achievements</h3>'+l.map(a=>`<div class="ach ${a.u?'u':'l'}"><b>${a.n}</b><span>${a.u?'unlocked':a.d}</span></div>`).join('')+`<div class="jb" style="font-size:12px;color:var(--lab);margin-top:8px">Skins: ${sk.length?sk.join(', '):'none yet'} · ${s.coins} coins · ${s.streak}-day streak</div><button class="btn g sm" id="dly" style="margin-top:10px">Claim daily reward</button>`;
-$('pf').textContent=`Profiler: ${s.persona} · best ${s.best} · ${s.coins} coins`;best=Math.max(best,s.best)}
+$('ach').innerHTML='<h3>Achievements</h3>'+l.map(a=>`<div class="ach ${a.u?'u':'l'}"><b>${a.n}</b><span>${a.u?'unlocked':a.d}</span></div>`).join('')+`<div class="jb" style="font-size:12px;color:var(--lab);margin-top:8px">Tier ${tier()} (${rating()}) · Skins: ${sk.length?sk.join(', '):'none yet'} · ${s.coins} coins · ${s.streak}-day streak · ${PR.trophies||0} cup trophies</div><button class="btn g sm" id="dly" style="margin-top:10px">Claim daily reward</button>`;
+$('pf').textContent=`Profiler: ${s.persona} · ${tier()} ${rating()} · best ${s.best}`;best=Math.max(best,s.best)}
 $('ach').addEventListener('click',e=>{if(e.target.id==='dly'){if(A.tok)f('/api/v1/rewards/daily',{method:'POST'}).then(r=>r.json()).then(j=>say(`+${j.bonus} coins`)).catch(x=>say(x.message));else say(claim())}});
 function claim(){const d=day();if(PR.last===d)return 'Daily reward already claimed today.';const y=new Date(Date.now()-864e5).toISOString().slice(0,10);PR.streak=PR.last===y?PR.streak+1:1;PR.last=d;const b=50+10*Math.min(PR.streak,10);PR.coins+=b;save();refresh();return `Claimed +${b} coins · ${PR.streak}-day streak`}
 function refresh(){if(A.tok)return;drawLb();renderAch();spark()}
@@ -42,8 +44,9 @@ const apiFriend=$('fa').onclick;
 $('fa').onclick=()=>{if(A.tok)return apiFriend();const n=$('fr').value.trim();if(!/^[A-Za-z0-9_]{3,32}$/.test(n)){setS2('Friend name: 3-32 letters, numbers or _');return}if(n===PR.name||PR.friends.includes(n)){setS2('Already on your list.');return}PR.friends.push(n);save();$('fr').value='';setS2(`Added rival ${n}. Check the Friends tab.`);if(A.period==='friends')drawLb()};
 // record finished rounds
 const apiEnd=end;
-end=async function(){await apiEnd();if(A.tok)return;if(trust>=40){const acc=shots?hit/shots:0,cps=hit/Math.max(1,DUR||(performance.now()-st)/1000);PR.rounds.push({sc,hits:hit,shots,acc:Math.round(acc*100),persona:cps>3.5?'The Speed Demon':acc>.9?'Precision Sniper':'Tactical Strategist',mode:MODE,t:Date.now()});PR.rounds=PR.rounds.slice(-100);save();say(`Round saved: ${sc} pts`)}refresh();coach();analytics()};
+end=async function(){await apiEnd();if(A.tok)return;if(trust>=40){const acc=shots?hit/shots:0,cps=hit/Math.max(1,DUR||(performance.now()-st)/1000);PR.rounds.push({sc,hits:hit,shots,acc:Math.round(acc*100),persona:cps>3.5?'The Speed Demon':acc>.9?'Precision Sniper':'Tactical Strategist',mode:MODE,t:Date.now()});PR.rounds=PR.rounds.slice(-100);save();say(`Round saved: ${sc} pts`)}PR.ghosts=PR.ghosts||{};if(sc>=((PR.ghosts[MODE]||{}).sc||0))PR.ghosts[MODE]={sc,run:A.run.slice(0,300)};save();refresh();coach();analytics();settleCup()};
 // ---------- AI: llm helper, agent, coach ----------
+const LANGS={en:{code:'en-US',name:'English'},te:{code:'te-IN',name:'Telugu'},hi:{code:'hi-IN',name:'Hindi'}};let lang=store.get('lang','en');const LN=()=>lang!=='en'?'\nAlways reply in '+LANGS[lang].name+'.':'';
 const gk=()=>$('kg').value.trim(),jk=()=>$('kj').value.trim();
 try{['kg','kj'].forEach(i=>{$(i).value=sessionStorage.getItem(i)||'';$(i).addEventListener('input',()=>sessionStorage.setItem(i,$(i).value))})}catch(e){}
 async function llm(prompt){try{if(gk()){const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+gk()},body:JSON.stringify({model:'llama-3.3-70b-versatile',max_tokens:200,messages:[{role:'user',content:prompt}]})});if(r.ok)return(await r.json()).choices[0].message.content}
@@ -57,14 +60,14 @@ async function loadLLM(){if(LLM){say('On-device AI is already loaded.');return}i
 say('Downloading the on-device model (~350 MB, first time only)…');
 try{const w=await import('https://esm.run/@mlc-ai/web-llm');LLM=await w.CreateMLCEngine('Qwen2.5-0.5B-Instruct-q4f16_1-MLC',{initProgressCallback:p=>say('On-device AI: '+String(p.text).slice(0,90))});say('On-device AI ready. Ask Click-Bot without any API key.')}catch(e){LLM=null;say('On-device AI failed: '+e.message)}}
 function typeOut(el,t){return new Promise(r=>{let i=0;const iv=setInterval(()=>{i+=3;el.textContent=t.slice(0,i);L.scrollTop=L.scrollHeight;if(i>=t.length){clearInterval(iv);r()}},12)})}
-function speak(t){if(voiceOn&&'speechSynthesis'in window&&t){speechSynthesis.cancel();speechSynthesis.speak(new SpeechSynthesisUtterance(t.slice(0,300)))}}
+function speak(t){if(voiceOn&&'speechSynthesis'in window&&t){speechSynthesis.cancel();{const u=new SpeechSynthesisUtterance(t.slice(0,300));u.lang=LANGS[lang].code;speechSynthesis.speak(u)}}}
 async function agentAsk(q){add(q,'u');const out=add('…');
-if(LLM&&!gk()&&!jk()){try{const ctx=rag(q).map(c=>c[0]+': '+c[1]).join('\n'),r=await LLM.chat.completions.create({stream:true,messages:[{role:'system',content:'You are Click-Bot Prime, a concise esports coach for a neon clicker game. Answer in 2 sentences using only these facts:\n'+ctx},{role:'user',content:q}]});let t='';for await(const ch of r){t+=(ch.choices[0]&&ch.choices[0].delta.content)||'';out.textContent=t;L.scrollTop=L.scrollHeight}speak(t)}catch(e){out.textContent='On-device AI error: '+e.message}return}
+if(LLM&&!gk()&&!jk()){try{const ctx=rag(q).map(c=>c[0]+': '+c[1]).join('\n'),r=await LLM.chat.completions.create({stream:true,messages:[{role:'system',content:'You are Click-Bot Prime, a concise esports coach for a neon clicker game. Answer in 2 sentences using only these facts:\n'+ctx+LN()},{role:'user',content:q}]});let t='';for await(const ch of r){t+=(ch.choices[0]&&ch.choices[0].delta.content)||'';out.textContent=t;L.scrollTop=L.scrollHeight}speak(t)}catch(e){out.textContent='On-device AI error: '+e.message}return}
 if(!gk()&&!jk()){const m=q.match(/challenge\s*(easy|hard|medium)?/i);let r;
 if(m)r=TOOLS.trigger_custom_challenge({difficulty:(m[1]||'medium').toLowerCase()});else if(/daily|reward/i.test(q))r=claim();else if(/stat|rank/i.test(q))r=TOOLS.fetch_player_stats();else if(/(start|play).*(round|game)/i.test(q))r=TOOLS.start_round();
 else{r=rag(q)[0][1];out.textContent=r;add('Offline answer. Add a free Groq or Gemini key below to unlock the full AI agent.','s');return}
 out.textContent=r;return}
-const ctx=rag(q).map(c=>c[0]+': '+c[1]).join('\n'),sys='You are Click-Bot Prime, a concise esports coach for a neon clicker game. Use tools for player data and actions. Game facts:\n'+ctx;
+const ctx=rag(q).map(c=>c[0]+': '+c[1]).join('\n'),sys='You are Click-Bot Prime, a concise esports coach for a neon clicker game. Use tools for player data and actions. Game facts:\n'+ctx+LN();
 try{if(gk()){const msgs=[{role:'system',content:sys},{role:'user',content:q}];
 for(let i=0;i<4;i++){const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+gk()},body:JSON.stringify({model:'llama-3.3-70b-versatile',messages:msgs,tools:TS,tool_choice:'auto'})});if(!r.ok)throw new Error('Groq '+r.status);
 const m=(await r.json()).choices[0].message;
@@ -83,7 +86,7 @@ if(gk()||jk()){const a=await llm(`You are an esports coach. Give exactly 3 short
 let voiceOn=false,rc=null;const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 $('vc').onclick=()=>{if(!SR){say('Voice control needs Chrome (SpeechRecognition).');return}
 if(voiceOn){voiceOn=false;try{rc.stop()}catch(e){}$('vc').textContent='Voice';return}
-rc=new SR();rc.lang='en-US';rc.continuous=true;rc.onresult=e=>{const t=e.results[e.results.length-1][0].transcript.trim();say('Heard: '+t);voiceCmd(t)};rc.onend=()=>{if(voiceOn)try{rc.start()}catch(e){}};rc.onerror=()=>{};try{rc.start();voiceOn=true;$('vc').textContent='Voice: on'}catch(e){say('Mic: '+e.message)}};
+rc=new SR();rc.lang=LANGS[lang].code;rc.continuous=true;rc.onresult=e=>{const t=e.results[e.results.length-1][0].transcript.trim();say('Heard: '+t);voiceCmd(t)};rc.onend=()=>{if(voiceOn)try{rc.start()}catch(e){}};rc.onerror=()=>{};try{rc.start();voiceOn=true;$('vc').textContent='Voice: on'}catch(e){say('Mic: '+e.message)}};
 function voiceCmd(t){const s=t.toLowerCase(),m=s.match(/theme (neon|retro|sun)/);if(/^(start|play|begin)/.test(s))$('go').click();else if(m)TOOLS.set_theme({theme:m[1]});else if(/^(mute|silence)/.test(s))$('mt').click();else{$('chat').classList.add('o');ask(t)}}
 // ---------- motion mode (webcam frame differencing, runs fully in the browser) ----------
 let mv=null;
@@ -129,7 +132,24 @@ CMDS.push(['Load on-device AI (WebGPU)',loadLLM],['Mode: Survival',mode('surviva
 const ab=document.createElement('button');ab.className='btn g sm';ab.textContent='AI stylize (server)';ab.style.cssText='margin:10px 0 0 8px';$('adl').after(ab);
 ab.onclick=async()=>{const fl=$('af').files[0];if(!fl){say('Pick a photo first.');return}if(!A.tok){say('AI stylize needs a logged-in backend with the avatar service running (docker compose --profile avatar up).');return}
 ab.textContent='Generating…';try{const fd=new FormData();fd.append('frame',fl);const r=await f('/api/v1/avatar?style='+({neon:'neon',pixel:'pixel',sun:'synth'}[$('as2').value]||'neon'),{method:'POST',body:fd}),im=new Image();im.onload=()=>{$('av').getContext('2d').drawImage(im,0,0,256,256);ab.textContent='AI stylize (server)'};im.src=URL.createObjectURL(await r.blob())}catch(e){say('Avatar: '+e.message);ab.textContent='AI stylize (server)'}};
+// ---------- weekly cup (8-player single elimination vs bots, seeded 15s Rush rounds) ----------
+const CUPR=['Quarterfinal','Semifinal','Final'];let CUPM=null;
+const cupOpp=r=>BOTS[hash('cup'+wk()+r)%BOTS.length],cupTarget=r=>[150,230,310][r]+hash('t'+wk()+r)%40;
+function cup(){if(!PR.cup||PR.cup.w!==wk())PR.cup={w:wk(),r:0,res:[],out:false};return PR.cup}
+function renderCup(){const c=cup(),el=$('cupb');el.innerHTML=CUPR.map((n,i)=>{const r=c.res[i],st=r?(r.won?`Won ${r.score} vs ${r.target}`:`Lost ${r.score} vs ${r.target}`):(c.out?'Eliminated':i===c.r?'Next match':'Locked');
+return `<div><span class="tg ${r&&r.won?'d':''}">${st.split(' ')[0]}</span><div><b>${n}: vs ${cupOpp(i)}</b><p>Beat ${cupTarget(i)} points in 15 seconds. ${r?st:''}</p></div></div>`}).join('');
+$('cupgo').textContent=c.out||c.r>2?'Bracket finished':'Play '+CUPR[c.r].toLowerCase()}
+$('cupgo').onclick=()=>{const c=cup();if(c.out||c.r>2){say('Bracket finished. A new one opens next week, or reset it.');return}if(run)return;
+[...$('modes').children].find(b=>b.dataset.m==='rush').click();CUPM={r:c.r,target:cupTarget(c.r),opp:cupOpp(c.r)};DUEL_SEED=hash('seed'+wk()+c.r);jump('play');$('go').click();say(`${CUPR[c.r]} vs ${CUPM.opp}: beat ${CUPM.target} points!`)};
+$('cupnew').onclick=()=>{PR.cup={w:wk(),r:0,res:[],out:false};save();renderCup()};
+function settleCup(){if(!CUPM)return;const c=cup(),m=CUPM,won=sc>m.target;CUPM=null;c.res.push({won,score:sc,target:m.target});
+if(won){c.r++;PR.coins+=100*c.r;say(c.r>2?'You won the Weekly Cup! +500 coins and a trophy.':`Match won (${sc} vs ${m.target})! On to the ${CUPR[c.r].toLowerCase()}.`);if(c.r>2){PR.coins+=500;PR.trophies=(PR.trophies||0)+1}}else{c.out=true;say(`Eliminated by ${m.opp}: ${sc} vs ${m.target}.`)}save();renderCup();refresh()}
+const prevGo=$('go').onclick;$('go').onclick=async()=>{await prevGo();if(!A.tok)A.ghost=(PR.ghosts&&PR.ghosts[MODE]&&PR.ghosts[MODE].run)||[]};
+CMDS.push(['Weekly Cup: play next match',()=>{jump('cup');$('cupgo').click()}],['Go to Weekly Cup',()=>jump('cup')],['Theme: Aurora Ice',()=>th('ice')],['Theme: Ghost Gold',()=>th('gold')],['Toggle music',()=>window.NP_music&&window.NP_music()],
+['Toggle visual effects',()=>{FX=!FX;store.set('fx',FX);document.documentElement.dataset.fx=FX?'':'off';say('Visual effects '+(FX?'on':'off'))}],
+['Language: English',()=>setLang('en')],['Language: Telugu',()=>setLang('te')],['Language: Hindi',()=>setLang('hi')]);
+function setLang(k){lang=k;store.set('lang',k);say('AI language: '+LANGS[k].name+' (voice and replies)')}
 // ---------- init ----------
 ui();setS2(PR.name?`Signed in locally as ${PR.name}.`:'Local mode: profile and scores are saved in this browser. Add a backend URL for global leaderboards.');
-refresh();analytics();const sv=store.get('theme','neon');if(sv!=='neon'){const b=[...$('themes').children].find(x=>x.dataset.t===sv);b&&b.click()}
+refresh();analytics();renderCup();const sv=store.get('theme','neon');if(sv!=='neon'){const b=[...$('themes').children].find(x=>x.dataset.t===sv);b&&b.click()}
 })();

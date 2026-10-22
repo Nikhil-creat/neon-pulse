@@ -49,5 +49,18 @@ services:
     profiles: ["next"]
     build: {context: ./web, args: {NEXT_PUBLIC_API_URL: "http://localhost:8000"}}
     ports: ["8081:8080"]
+  prometheus:  # optional: docker compose --profile obs up
+    <<: *svc
+    profiles: ["obs"]
+    image: prom/prometheus:v2.55.0
+    volumes: ["./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["9090:9090"]
+  grafana:
+    <<: *svc
+    profiles: ["obs"]
+    image: grafana/grafana:11.3.0
+    environment: {GF_AUTH_ANONYMOUS_ENABLED: "true", GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"}
+    volumes: ["./observability/grafana/provisioning:/etc/grafana/provisioning:ro", "./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro"]
+    ports: ["3000:3000"]
 networks: {neon: {driver: bridge}}
 volumes: {pgdata: {}, qdrant: {}, hf: {}}
